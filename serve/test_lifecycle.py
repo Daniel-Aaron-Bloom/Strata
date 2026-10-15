@@ -229,6 +229,18 @@ class Lifecycle(unittest.TestCase):
         self.assertEqual(event["event"], "status_change")
         self.assertEqual(event["data"], {"status": "unloaded", "exit_code": 0})
 
+    def test_models_sse_reports_a_failed_load_as_unloaded(self):
+        conn, response = self.sse_connection()
+
+        def died():
+            raise EngineDied("the engine ended while it started")
+        self.engine.restart = died
+        self.engine.exit_code = lambda: 3
+        self.assertEqual(self.request("/v1/load", {"model": self.svc.model})[0], 503)
+        events = [json.loads(self.read_sse(response).removeprefix(b"data: ")) for _ in range(2)]
+        self.assertEqual([e["data"]["status"] for e in events], ["loading", "unloaded"])
+        self.assertEqual(events[1]["data"]["exit_code"], 3)
+
     def test_models_sse_heartbeats_while_quiet(self):
         with mock.patch("serve.server.KEEPALIVE_S", 0.2):    # the usual 10 s cadence, sped up for the test
             conn, response = self.sse_connection()

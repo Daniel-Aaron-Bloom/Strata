@@ -3169,6 +3169,9 @@ class Service:
         except Exception:
             if vision_started:
                 self.vision.unload()
+            # the watcher that saw "loading" must not stay there: the start failed, the model is unloaded
+            code = self.engine.exit_code() if hasattr(self.engine, "exit_code") else None
+            self.sse_notify("status_change", {"status": "unloaded", **({"exit_code": code} if code is not None else {})})
             raise
         print("[strata] the engine is running again", flush=True)
         self.sse_notify("status_change", {"status": "loaded", "info": self.model_entry()})
